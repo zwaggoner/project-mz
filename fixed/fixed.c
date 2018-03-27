@@ -9,6 +9,12 @@
 #define SIGN_BIT_NUM 31
 #define EXPONENT_START_BIT_NUM 23
 
+typedef union
+{
+	float f_float;
+	uint32_t f_bits;
+} FloatToBits;
+
 fixed32_t float_to_fixed(float f, FixedPointError* err)
 {
 	fixed32_t ret = 0;
