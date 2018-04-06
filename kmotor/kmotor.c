@@ -31,41 +31,146 @@
 
 
 // define structure for device instance data
-struct esl_axitimer_instance
+struct mz_motor_instance
 {
-  void __iomem *regs; // memory-mapped registers
+  void __iomem *timer_regs; // memory-mapped registers
+  void __iomem *gpio_regs;
+
   unsigned int flags; // instance flags
+  struct cdev chr_dev;
   dev_t devno; // device number
+  struct list_head inst_list;
   unsigned long period;
   unsigned long duty;
   struct hrtimer hrtimer_inst;
   ktime_t hrtimer_interval;
-  int an_state;
+  wait_queue_head_t waitq;
+};
+
+struct mz_motor_driver
+{
+  u32 dev_major;
+  dev_t first_devno;
+  struct class* class;
+  unsigned int instance_number;
+  struct list_head instance_list;
 };
 
 // define structure for class data (common across all instances)
-struct esl_axitimer_driver
+/**struct esl_axitimer_driver
 {
   u32 dev_major; //device major number
   dev_t devt;
 
   unsigned int instance_number; // ever-increasing number for instances
-};
+};**/
 
 // Instantiate class data 
-static struct esl_axitimer_driver driver_data;
+static struct mz_motor_driver driver_data = {
+  .instance_count = 0,
+  .instance_list = LIST_HEAD_INIT(driver_data.instance_list),
+};
 
 // Utility method to read registers
-static inline u32 reg_read(struct esl_axitimer_instance* inst, u32 reg)
+static inline u32 reg_read(struct mz_motor_instance* inst, u32 reg)
 {
-  return ioread32(inst->regs + reg);
+  return ioread32(inst->timer_regs + reg);
 }
 
 // Utility method to write registers
-static inline void reg_write(struct esl_axitimer_instance* inst, u32 reg,
+static inline void reg_write(struct mz_motor_instance* inst, u32 reg,
                              u32 value)
 {
-  iowrite32(value, inst->regs + reg);
+  iowrite32(value, inst->timer_regs + reg);
+}
+
+static struct mz_motor_instance* inode_to_instance(struct inode* i)
+{
+  struct mz_motor_instance *inst_iter;
+  unsigned int minor = iminor(i);
+
+  list_for_each_entry(inst_iter, &driver_data.instance_list, inst_list)
+    {
+      if (MINOR(inst_iter->devno) == minor)
+        {
+          // found our corresponding instance
+          return inst_iter;
+        }
+    }
+
+  // not found
+  return NULL;
+}
+
+static struct mz_motor_instance* file_to_instance(struct file* f)
+{
+  return inode_to_instance(f->f_path.dentry->d_inode);
+}
+
+static ssize_t mz_motor_write(struct file* f,
+                               const char __user *buf, size_t len,
+                               loff_t* offset)
+{
+  struct mz_motor_instance *inst = file_to_instance(f);
+  unsigned int written = 0;
+  unsigned int curr_int; 
+  unsigned int i;
+
+
+  if (!inst)
+    {
+      // instance not found
+      return -ENOENT;
+    }
+
+    /**for(i = 0; i < (len / sizeof(unsigned int)); i++)
+    {
+      wait_event_interruptible(inst->waitq, !fifo_full(inst));
+
+      written += copy_from_user((void*)&curr_int, buf + i*sizeof(unsigned int), sizeof(unsigned int));
+
+      if((written % sizeof(unsigned int)) != 0)
+      {
+        return -EINVAL;
+      }
+
+      iowrite32(curr_int, inst->regs + WRITE_REG);
+    }**/
+
+    return written;
+}
+
+static ssize_t mz_motor_read(struct file* f,
+                              const char __user *buf, size_t len,
+                              loff_t* offset)
+{
+  struct mz_motor_instance *inst = file_to_instance(f);
+  unsigned int read  0;
+
+  return read;
+}
+
+struct file_operations mz_motor_fops = {
+  .write = mz_motor_write,
+  .read = mz_motor_read
+};
+
+static irqreturn_t mz_motor_encodera_gpio_irq_handler(int irq, void* dev_id)
+{
+  struct esl_audio_instance* inst = dev_id;
+
+  // TODO handle interrupts
+ 
+  return IRQ_HANDLED;
+}
+
+static irqreturn_t mz_motor_encoderb_gpio_irq_handler(int irq, void* dev_id)
+{
+  struct esl_audio_instance* inst = dev_id;
+
+  // TODO handle interrupts
+ 
+  return IRQ_HANDLED;
 }
 
 static enum hrtimer_restart esl_axitimer_animate(struct hrtimer* timer)
@@ -99,8 +204,7 @@ static void axitimer_initialize(struct esl_axitimer_instance* inst)
 // This function would be called whenever the status file is read from the sysfs directory structure corresponding to this kernel module the string idle gets returned when the pwm controller is idle
 static ssize_t esl_axitimer_state_show(struct device* dev,
                                        struct device_attribute* attr,
-                                       char* buf)
-{
+                                       char* buf) {
   struct esl_axitimer_instance* inst = dev_get_drvdata(dev);
 
   if (inst->flags & INSTANCE_FLAG_RUNNING)
@@ -128,7 +232,7 @@ static ssize_t esl_axitimer_control_store(struct device* dev,
       printk(KERN_INFO "Value written to register:%lu\n", period);
       reg_write(inst, PERIOD_REG, period);
 
-      duty = inst->duty * PWM_US_MULTIPLIER - 2; 
+      duty = ((inst->duty * inst->period * PWM_US_MULTIPLIER ) / 100) - 2; 
       printk(KERN_INFO "Value written to register:%lu\n", duty);
       reg_write(inst, DUTY_REG, duty);
 
