@@ -11,82 +11,62 @@
 #include <linux/string.h>
 #include <linux/kfifo.h>
 #include <linux/mutex.h>
+#include "../fixed/fixed.h"
+#include "kmotor.h"
 
 #define MODULE_NAME "mz-motor"
 
 static dev_t motor_devno;
-static struct cdev motor_dev;
+static unsigned long pwm_period;
+static struct class* motor_class;
+static struct cdev motor_dev; 
+static fixed32_t voltage;
+static u8 running;
 
-static ssize_t motor_sample_time_store(struct device* dev,
-                                          struct device_attribute* attr,
-                                          const char* buf, size_t count)
+static long motor_ioctl(struct file * filp, unsigned int cmd, unsigned long arg)
 {
-  return count;
-}
+  switch(cmd)
+  {
+    case MOTOR_TEST:
+      printk(KERN_INFO "cmd is: %u\n", cmd);
+      printk(KERN_INFO "arg is: %lu\n", arg);
+      return 0;
+    case MOTOR_SET_VOLTAGE:
+    {
+      float voltage_temp = *((float*)&arg);
+      fixed32_t voltage_temp_fx;
+      FixedPointError err;
 
-static ssize_t motor_sample_time_show(struct device* dev,
-                                       struct device_attribute* attr,
-                                       char* buf)
-{
-  return sprintf(buf, "%u\n", 0); 
-}
+      voltage_temp_fx = float_to_fixed(voltage_temp, &err);
 
-static struct device_attribute motor_sample_time = {
-  .attr = {
-    .name = "sample_time",
-    .mode = S_IWUSR | S_IRUGO,
-  },
-  .store = motor_sample_time_store,
-  .show = motor_sample_time_show,
-};
+      if(err != NONE)
+      {
+        return -EINVAL;
+      }
 
-static struct attribute* motor_attrs[] = {
-  &motor_sample_time.attr,
-  NULL
-};
+      voltage = voltage_temp_fx; 
 
-// Group all attributes to "control" folder, 
-// this creates /sys/class/axitimer/axitimerX/control
-static struct attribute_group motor_attr_group = {
-  .name = "control", // control folder
-  .attrs = motor_attrs,
-};
+      printk(KERN_INFO "Voltage is: %x\n", voltage);
+      
+      return 0;
+    }
+    case MOTOR_GET_VOLTAGE:
+    {
+      float voltage_temp = fixed_to_float(voltage);
 
-static const struct attribute_group* motor_attr_groups[] = {
-  &motor_attr_group, // the "control" folder
-  NULL
-};
+      return *((u32*)&voltage_temp);    
+    } 
+    default:
+      printk(KERN_INFO "Unknown ioctl command: %u\n", cmd);
+      return -1; 
+  }
 
-// array of class-wide attributes (none)
-static struct class_attribute motor_class_attrs[] = {
-  __ATTR_NULL, // no class-wide attributes
-};
-
-static struct class motor_class = {
-  .name = "mz-motor",
-  .owner = THIS_MODULE,
-  .class_attrs = motor_class_attrs,
-};
-
-static ssize_t motor_read(struct file* f,
-                         char __user *buf,
-                         size_t count,
-                         loff_t* offset)
-{
-	return count;
-}
-
-static ssize_t motor_write(struct file* f,
-                          const char __user *buf,
-                          size_t count,
-                          loff_t* offset)
-{
-  return count;
+  return -1;
 }
 
 struct file_operations motor_fops = {
-  .read = motor_read,
-  .write = motor_write,
+  .owner = THIS_MODULE,
+  .unlocked_ioctl = motor_ioctl,
 };
 
 static int __init motor_init(void)
@@ -102,10 +82,7 @@ static int __init motor_init(void)
       return err;
     }
 
-  // Initializes both the cdev and file_operations structure for our character device 
   cdev_init(&motor_dev, &motor_fops);
-
-  // Let the kernel know about the device, given the major device number and number of devices to set up 
   err = cdev_add(&motor_dev, motor_devno, 1);
   if (err)
     {
@@ -113,21 +90,29 @@ static int __init motor_init(void)
       return err;
     }
 
- class_register(&motor_class);
-
- // Creates the device file for this in the /dev tree
- dev = device_create_with_groups(&motor_class, NULL,
-                                  motor_devno, NULL, motor_attr_groups,
-                                  "mz-motor0");
+  motor_class = class_create(THIS_MODULE, MODULE_NAME);
+  if (IS_ERR(motor_class))
+    {
+      return -ENOENT;
+    }
+  
+  // Creates the device file for this in the /dev tree
+  //
+  //
+  dev = device_create(motor_class,
+                NULL,
+                motor_devno,
+                NULL,
+                "mz-motor0");
 
   // TODO add tracing for successful char def creation
   if(IS_ERR(dev))
   {
     cdev_del(&motor_dev);
-    device_destroy(&motor_class, motor_devno);
+    device_destroy(motor_class, motor_devno);
 
     // delete class
-    class_destroy(&motor_class);
+    class_destroy(motor_class);
 
     // unregister chrdev region
     unregister_chrdev_region(motor_devno, 1); 
@@ -142,12 +127,12 @@ static int __init motor_init(void)
 
 static void __exit motor_exit(void)
 {
-  // delete char device and driver
   cdev_del(&motor_dev);
-  device_destroy(&motor_class, motor_devno);
+  // delete char device and driver
+  device_destroy(motor_class, motor_devno);
 
   // delete class
-  class_destroy(&motor_class);
+  class_destroy(motor_class);
 
   // unregister chrdev region
   unregister_chrdev_region(motor_devno, 1);

@@ -10,6 +10,7 @@
 #include <stdint.h>
 #else
 #include <linux/types.h>
+#include <asm/div64.h>
 typedef u64 uint64_t;
 typedef s64 int64_t;
 typedef u32 uint32_t;

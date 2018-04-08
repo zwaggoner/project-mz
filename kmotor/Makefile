@@ -1,4 +1,5 @@
-obj-m := kmotor.o
+obj-m := mz-kmotor.o
+mz-kmotor-objs := kmotor.o ../fixed/fixed.o
 ccflags-y += -g -DDEBUG
 
 # conditional if not on COE systems 
