@@ -17,51 +17,81 @@
 #define MODULE_NAME "mz-motor"
 
 static dev_t motor_devno;
-static unsigned long pwm_period;
 static struct class* motor_class;
 static struct cdev motor_dev; 
+
 static fixed32_t voltage;
+static fixed32_t max_voltage;
+static unsigned long pwm_period;
 static u8 running;
+
+static long get_fixed_from_arg(fixed32_t* dest, unsigned long* arg)
+{
+  float temp = *((float*)arg);
+  fixed32_t temp_fx;
+  FixedPointError err;
+  long ret = 0;
+ 
+  temp_fx = float_to_fixed(temp, &err);
+
+  if(err != NONE)
+  {
+    ret =  -EINVAL;
+  }
+
+  *dest = temp_fx;
+
+  return ret;
+}
+
+static long return_float_from_fixed(fixed32_t* src)
+{
+  float temp = fixed_to_float(*src);
+
+  return *((long*)&temp);
+}
 
 static long motor_ioctl(struct file * filp, unsigned int cmd, unsigned long arg)
 {
+  long ret = 0;
+
   switch(cmd)
   {
     case MOTOR_TEST:
       printk(KERN_INFO "cmd is: %u\n", cmd);
       printk(KERN_INFO "arg is: %lu\n", arg);
-      return 0;
+      break;
     case MOTOR_SET_VOLTAGE:
-    {
-      float voltage_temp = *((float*)&arg);
-      fixed32_t voltage_temp_fx;
-      FixedPointError err;
-
-      voltage_temp_fx = float_to_fixed(voltage_temp, &err);
-
-      if(err != NONE)
-      {
-        return -EINVAL;
-      }
-
-      voltage = voltage_temp_fx; 
-
-      printk(KERN_INFO "Voltage is: %x\n", voltage);
-      
-      return 0;
-    }
+      ret = get_fixed_from_arg(&voltage, &arg);
+      break;
     case MOTOR_GET_VOLTAGE:
-    {
-      float voltage_temp = fixed_to_float(voltage);
-
-      return *((u32*)&voltage_temp);    
-    } 
+      ret  = return_float_from_fixed(&voltage);    
+      break;
+    case MOTOR_SET_MAX_VOLTAGE:
+      ret = get_fixed_from_arg(&max_voltage, &arg);
+      break;
+    case MOTOR_GET_MAX_VOLTAGE:
+      ret = return_float_from_fixed(&max_voltage);
+      break;
+    case MOTOR_SET_PWM_PERIOD:
+      pwm_period = arg;
+      break;
+    case MOTOR_GET_PWM_PERIOD:
+      ret = pwm_period;
+      break;
+    case MOTOR_SET_STATE:
+      running = (arg) ? 1 : 0;
+      break;
+    case MOTOR_GET_STATE:
+      ret = running;
+      break;
     default:
       printk(KERN_INFO "Unknown ioctl command: %u\n", cmd);
-      return -1; 
+      ret = -1;
+      break; 
   }
 
-  return -1;
+  return ret;
 }
 
 struct file_operations motor_fops = {
@@ -71,6 +101,7 @@ struct file_operations motor_fops = {
 
 static int __init motor_init(void)
 {
+  FixedPointError fx_err;
   int err;
   struct device *dev = NULL;
 
@@ -119,7 +150,13 @@ static int __init motor_init(void)
   }
   else
   {
-    printk(KERN_INFO "Motor device driver Major:%i, Minor:%i\n", MAJOR(motor_devno), MINOR(motor_devno)); }
+    printk(KERN_INFO "Motor device driver Major:%i, Minor:%i\n", MAJOR(motor_devno), MINOR(motor_devno)); 
+  }
+
+  voltage = 0;
+  max_voltage = float_to_fixed(12.0, &fx_err);
+  pwm_period = 1000;
+  running = 0;
   
   return 0;
 }
