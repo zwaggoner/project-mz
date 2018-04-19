@@ -67,7 +67,9 @@ static fixed32_t angle_increment;
 
 static int gpio_irqnum;
 static void __iomem *gpio_regs;
+static struct resource* gpio_res;
 
+static struct resource timer_res;
 static void __iomem *timer_regs;
 
 static inline u32 reg_read(void __iomem* regs, u32 reg)
@@ -148,8 +150,15 @@ static long motor_ioctl(struct file * filp, unsigned int cmd, unsigned long arg)
               break;
           }
         }
+	
+	printk(KERN_INFO "Voltage is: %x", voltage);
+	printk(KERN_INFO "Fixed Divide result is: %x", 	fixed_divide(curr_sign * voltage, max_voltage, &err));
+	printk(KERN_INFO "Max Voltage is: %x", max_voltage);
+	printk(KERN_INFO "Ratio * PWM Period is %lx", fixed_divide(curr_sign * voltage, max_voltage, &err) * pwm_period);
+	printk(KERN_INFO "Integer result: %lx", (fixed_divide(curr_sign * voltage, max_voltage, &err) * pwm_period) >> POINT);
         
         duty = (voltage) ? (fixed_divide(curr_sign * voltage, max_voltage, &err) * pwm_period) >> POINT : 0;
+	printk(KERN_INFO "Duty Written: %u", duty);
         reg_write(timer_regs, DUTY_REG, (duty) ? (duty * PWM_US_MULTIPLIER - 2) : 0);
       }
       else
@@ -213,8 +222,10 @@ static long motor_ioctl(struct file * filp, unsigned int cmd, unsigned long arg)
         } 
 
         reg_write(timer_regs, PERIOD_REG, (pwm_period) ? (pwm_period * PWM_US_MULTIPLIER - 2) : 0);
+	printk(KERN_INFO "Period Written: %lu", pwm_period);
 
         duty = (voltage) ? (fixed_divide(curr_sign * voltage, max_voltage, &err) * pwm_period) >> POINT : 0;
+	printk(KERN_INFO "Duty Written: %u", duty);
         reg_write(timer_regs, DUTY_REG, (duty) ? (duty * PWM_US_MULTIPLIER - 2) : 0);       
 
         reg_write(timer_regs, TCSR0_REG, reg_read(timer_regs, TCSR0_REG) | ALL_ON_MASK);
@@ -247,6 +258,8 @@ static long motor_ioctl(struct file * filp, unsigned int cmd, unsigned long arg)
 static irqreturn_t encoder_irq_handler(int irq, void* dev_id)
 {
   u8 curr_encoder_state = 0;
+
+  printk(KERN_INFO "Encoder Interrupt fired\n");
 
   curr_encoder_state |= gpio_get_value(ENCODER_A_GPIO);
   curr_encoder_state |= gpio_get_value(ENCODER_B_GPIO) << 1;
@@ -301,7 +314,7 @@ static irqreturn_t encoder_irq_handler(int irq, void* dev_id)
   
   last_encoder_state = curr_encoder_state;
    
-  reg_write(gpio_regs, IP_ISR_OFFSET, 1);
+  reg_write(gpio_regs, IP_ISR_OFFSET, reg_read(gpio_regs, IP_ISR_OFFSET));
   
   return IRQ_HANDLED;
 }
@@ -315,6 +328,7 @@ static int __init motor_init(void)
 {
   FixedPointError fx_err;
   int err;
+  int rc = 0;
   struct device *dev = NULL;
   struct device_node *dev_node = NULL;
   const void* property;
@@ -322,7 +336,6 @@ static int __init motor_init(void)
   struct gpio_desc* gdesc;
   struct gpio_chip* chip;
   struct platform_device* gpio_pdev;
-  struct resource* gpio_res;
 
   voltage = 0;
   max_voltage = float_to_fixed(12.0f, &fx_err);
@@ -353,6 +366,20 @@ static int __init motor_init(void)
  
   if(dev_node)
   {
+    rc = of_address_to_resource(dev_node, 0, &timer_res);
+    
+    if(rc)
+    {
+      printk(KERN_WARNING "Failed to get timer resource\n");
+      return -ENOENT;
+    }
+  
+    if(!request_mem_region(timer_res.start, resource_size(&timer_res), timer_res.name))
+    {
+      printk(KERN_WARNING "Failed to request timer mem region\n");
+      return -ENOENT;
+    }
+ 
     timer_regs = of_iomap(dev_node, 0);
 
     if(!timer_regs)
@@ -395,13 +422,21 @@ static int __init motor_init(void)
   gpio_irqnum = gpio_res->start;
   request_threaded_irq(gpio_irqnum, encoder_irq_handler, NULL, IRQF_TRIGGER_RISING, "Encoder Interrupt", NULL);
 
-  gpio_regs = ioremap(GPIO_BASE_ADDR, IP_INT_OFFSET);
+  gpio_res = platform_get_resource(gpio_pdev, IORESOURCE_MEM, 0);
+
+  if(!request_mem_region(gpio_res->start, resource_size(gpio_res), gpio_res->name))
+  {
+    printk(KERN_WARNING "Error requesting GPIO mem region\n");
+    return -ENODEV;
+  }
+
+  gpio_regs = ioremap(gpio_res->start, resource_size(gpio_res));
 
   reg_write(timer_regs, TCSR0_REG, CTRL_REG_VAL);
   reg_write(timer_regs, TCSR1_REG, CTRL_REG_VAL);
 
   reg_write(gpio_regs, GLOBAL_INT_OFFSET, (u32)(1 << 31));
-  reg_write(gpio_regs, IP_INT_OFFSET, (u32)1);
+  reg_write(gpio_regs, IP_INT_OFFSET, (u32)(3));
 
   gpio_direction_output(CTRL_1_GPIO, 0);
   gpio_direction_output(CTRL_2_GPIO, 0);
@@ -464,6 +499,14 @@ static int __init motor_init(void)
 
 static void __exit motor_exit(void)
 {
+  iounmap(timer_regs);
+  iounmap(gpio_regs);
+
+  release_mem_region(gpio_res->start, resource_size(gpio_res));
+  release_mem_region(timer_res.start, resource_size(&timer_res));
+
+  free_irq(gpio_irqnum, NULL);
+
   cdev_del(&motor_dev);
   // delete char device and driver
   device_destroy(motor_class, motor_devno);
