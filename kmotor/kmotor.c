@@ -47,10 +47,10 @@
 #define IP_INT_OFFSET (u32)0x0128
 #define IP_ISR_OFFSET (u32)0x0120
 
-#define CTRL_1_GPIO GPIO_BASE
-#define CTRL_2_GPIO (GPIO_BASE + 1)
-#define ENCODER_A_GPIO (GPIO_BASE + 2)
-#define ENCODER_B_GPIO (GPIO_BASE + 3)
+#define CTRL_1_GPIO (GPIO_BASE + 11)
+#define CTRL_2_GPIO (GPIO_BASE + 12)
+#define ENCODER_A_GPIO (GPIO_BASE + 0)
+#define ENCODER_B_GPIO (GPIO_BASE + 1)
 
 static dev_t motor_devno;
 static struct class* motor_class;
@@ -436,7 +436,7 @@ static int __init motor_init(void)
   reg_write(timer_regs, TCSR1_REG, CTRL_REG_VAL);
 
   reg_write(gpio_regs, GLOBAL_INT_OFFSET, (u32)(1 << 31));
-  reg_write(gpio_regs, IP_INT_OFFSET, (u32)(3));
+  reg_write(gpio_regs, IP_INT_OFFSET, (u32)(2));
 
   gpio_direction_output(CTRL_1_GPIO, 0);
   gpio_direction_output(CTRL_2_GPIO, 0);
