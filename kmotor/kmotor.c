@@ -47,8 +47,8 @@
 #define IP_INT_OFFSET (u32)0x0128
 #define IP_ISR_OFFSET (u32)0x0120
 
-#define CTRL_1_GPIO (GPIO_BASE + 11)
-#define CTRL_2_GPIO (GPIO_BASE + 12)
+#define CTRL_1_GPIO (GPIO_BASE + 10)
+#define CTRL_2_GPIO (GPIO_BASE + 11)
 #define ENCODER_A_GPIO (GPIO_BASE + 0)
 #define ENCODER_B_GPIO (GPIO_BASE + 1)
 
@@ -151,15 +151,8 @@ static long motor_ioctl(struct file * filp, unsigned int cmd, unsigned long arg)
           }
         }
 	
-	printk(KERN_INFO "Voltage is: %x", voltage);
-	printk(KERN_INFO "Fixed Divide result is: %x", 	fixed_divide(curr_sign * voltage, max_voltage, &err));
-	printk(KERN_INFO "Max Voltage is: %x", max_voltage);
-	printk(KERN_INFO "Ratio * PWM Period is %lx", fixed_divide(curr_sign * voltage, max_voltage, &err) * pwm_period);
-	printk(KERN_INFO "Integer result: %lx", (fixed_divide(curr_sign * voltage, max_voltage, &err) * pwm_period) >> POINT);
-        
         duty = (voltage) ? (fixed_divide(curr_sign * voltage, max_voltage, &err) * pwm_period) >> POINT : 0;
-	printk(KERN_INFO "Duty Written: %u", duty);
-        reg_write(timer_regs, DUTY_REG, (duty) ? (duty * PWM_US_MULTIPLIER - 2) : 0);
+        reg_write(timer_regs, DUTY_REG, (duty) ? (duty * PWM_US_MULTIPLIER - 2 - 1) : 0);
       }
       else
       {
@@ -222,11 +215,9 @@ static long motor_ioctl(struct file * filp, unsigned int cmd, unsigned long arg)
         } 
 
         reg_write(timer_regs, PERIOD_REG, (pwm_period) ? (pwm_period * PWM_US_MULTIPLIER - 2) : 0);
-	printk(KERN_INFO "Period Written: %lu", pwm_period);
 
         duty = (voltage) ? (fixed_divide(curr_sign * voltage, max_voltage, &err) * pwm_period) >> POINT : 0;
-	printk(KERN_INFO "Duty Written: %u", duty);
-        reg_write(timer_regs, DUTY_REG, (duty) ? (duty * PWM_US_MULTIPLIER - 2) : 0);       
+        reg_write(timer_regs, DUTY_REG, (duty) ? (duty * PWM_US_MULTIPLIER - 2 - 1) : 0);       
 
         reg_write(timer_regs, TCSR0_REG, reg_read(timer_regs, TCSR0_REG) | ALL_ON_MASK);
       }
@@ -259,62 +250,73 @@ static irqreturn_t encoder_irq_handler(int irq, void* dev_id)
 {
   u8 curr_encoder_state = 0;
 
-  printk(KERN_INFO "Encoder Interrupt fired\n");
-
   curr_encoder_state |= gpio_get_value(ENCODER_A_GPIO);
   curr_encoder_state |= gpio_get_value(ENCODER_B_GPIO) << 1;
 
-  switch(last_encoder_state)
+  if(curr_encoder_state != last_encoder_state)
   {
-    case 0b00:
-      switch(curr_encoder_state)
-      {
-        case 0b10:
-          angle -= angle_increment;
-          break;
-        case 0b01:
-          angle += angle_increment;
-          break;
-      } 
-      break;
-    case 0b01:
-      switch(curr_encoder_state)
-      {
-        case 0b00:
-          angle -= angle_increment;
-          break;
-        case 0b11:
-          angle += angle_increment;
-          break;
-      }
-      break;
-    case 0b11:
-      switch(curr_encoder_state)
-      {
-        case 0b01:
-          angle -= angle_increment;
-          break;
-        case 0b10:
-          angle += angle_increment;
-          break;
-      }
-      break;
-    case 0b10:
-      switch(curr_encoder_state)
-      {
-        case 0b00:
-          angle += angle_increment;
-          break;
-        case 0b11:
-          angle -= angle_increment;
-          break;
-      }
-      break;
+    switch(last_encoder_state)
+    {
+      case 0b00:
+        switch(curr_encoder_state)
+        {
+          case 0b10:
+            angle -= angle_increment;
+            break;
+          case 0b01:
+            angle += angle_increment;
+            break;
+        } 
+        break;
+      case 0b01:
+        switch(curr_encoder_state)
+        {
+          case 0b00:
+            angle -= angle_increment;
+            break;
+          case 0b11:
+            angle += angle_increment;
+            break;
+        }
+        break;
+      case 0b11:
+        switch(curr_encoder_state)
+        {
+          case 0b01:
+            angle -= angle_increment;
+            break;
+          case 0b10:
+            angle += angle_increment;
+            break;
+        }
+        break;
+      case 0b10:
+        switch(curr_encoder_state)
+        {
+          case 0b00:
+            angle += angle_increment;
+            break;
+          case 0b11:
+            angle -= angle_increment;
+            break;
+        }
+        break;
+    }
+
+    if(angle > (360 << POINT))
+    {
+      angle -= (360 << POINT);
+    }
+
+    if(angle < 0)
+    {
+      angle += (360 << POINT);
+    }
+
+    last_encoder_state = curr_encoder_state;
   }
-  
-  last_encoder_state = curr_encoder_state;
    
-  reg_write(gpio_regs, IP_ISR_OFFSET, reg_read(gpio_regs, IP_ISR_OFFSET));
+  reg_write(gpio_regs, IP_ISR_OFFSET, 1);//reg_read(gpio_regs, IP_ISR_OFFSET));
   
   return IRQ_HANDLED;
 }
@@ -343,7 +345,7 @@ static int __init motor_init(void)
   running = 0;
   last_encoder_state = 0;
   angle = 0;
-  angle_increment = float_to_fixed(1.40845070423f, &fx_err);
+  angle_increment = float_to_fixed(0.70422535211f, &fx_err);
 
   dev_node = of_find_compatible_node(NULL, NULL, "xlnx,xps-timer-1.00.a");
 
@@ -436,7 +438,7 @@ static int __init motor_init(void)
   reg_write(timer_regs, TCSR1_REG, CTRL_REG_VAL);
 
   reg_write(gpio_regs, GLOBAL_INT_OFFSET, (u32)(1 << 31));
-  reg_write(gpio_regs, IP_INT_OFFSET, (u32)(2));
+  reg_write(gpio_regs, IP_INT_OFFSET, (u32)1);
 
   gpio_direction_output(CTRL_1_GPIO, 0);
   gpio_direction_output(CTRL_2_GPIO, 0);
