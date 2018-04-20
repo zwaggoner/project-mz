@@ -345,7 +345,7 @@ static int __init motor_init(void)
   running = 0;
   last_encoder_state = 0;
   angle = 0;
-  angle_increment = float_to_fixed(0.70422535211f, &fx_err);
+  angle_increment = float_to_fixed(0.35211267605f, &fx_err);
 
   dev_node = of_find_compatible_node(NULL, NULL, "xlnx,xps-timer-1.00.a");
 

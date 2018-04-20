@@ -39,13 +39,13 @@ int main(int argc, char* argv[])
     }
   }
 
-  if(!potentiometer_init())
+  if(potentiometer_init())
   {
     printf("Failed to initialize potentiometer\n");
     return -1;
   }
 
-  if(!motor_init(MOTOR_VOLTAGE, PWM_PERIOD_US))
+  if(motor_init(MOTOR_VOLTAGE, PWM_PERIOD_US))
   {
     printf("Failed to initialize motor\n");
     potentiometer_deinit();
