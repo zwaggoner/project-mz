@@ -501,6 +501,13 @@ static int __init motor_init(void)
 
 static void __exit motor_exit(void)
 {
+  gpio_direction_output(CTRL_1_GPIO, 0);
+  gpio_direction_output(CTRL_2_GPIO, 0);
+  reg_write(timer_regs, DUTY_REG, 0);
+  reg_write(timer_regs, PERIOD_REG, 0);
+  reg_write(timer_regs, TCSR0_REG, reg_read(timer_regs, TCSR0_REG) & OFF_MASK);
+  reg_write(timer_regs, TCSR1_REG, reg_read(timer_regs, TCSR1_REG) & OFF_MASK);
+
   iounmap(timer_regs);
   iounmap(gpio_regs);
 
