@@ -156,11 +156,17 @@ fixed32_t fixed_multiply(fixed32_t op1, fixed32_t op2, FixedPointError* err)
 fixed32_t fixed_divide(fixed32_t op1, fixed32_t op2, FixedPointError* err)
 {
 	int64_t op1_64 = op1;
-	int64_t res64 = 0;
+	uint64_t res64 = 0;
 	fixed32_t ret;
 
+#ifdef FIXED_EXAMPLE
 	res64 = (op1_64 << POINT) / op2;
-	ret = res64;
+#else
+  res64 = op1_64 << POINT;
+  do_div(res64, op2);
+#endif
+
+  ret = res64;
 
 	if(((res64 & ((uint64_t)SIGN_MASK << 32)) >> 63) != (((uint32_t)ret & SIGN_MASK) >> 31))
 	{
