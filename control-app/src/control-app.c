@@ -1,5 +1,6 @@
 #include <potentiometer.h>
 #include <motor.h>
+#include <controllers.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <signal.h>
@@ -13,7 +14,15 @@
 #define MOTOR_VOLTAGE 12.0f
 #define PWM_PERIOD_US 1000
 
+#define POT_ADC_MAX 1365
+#define POT_OUTPUT_MAX 360 
+
 #define LOOP_RATE_NS 1000000
+
+#define Kp 0.142065690258213
+#define Ki 0.081333487477284
+#define Kd 0.0520942929296246
+#define Saturation MOTOR_VOLTAGE
 
 static volatile unsigned char running = 1;
 
@@ -43,20 +52,15 @@ int main(int argc, char* argv[])
     {
       shaper = 1;
     }
-    else
-    {
-      des = atof(argv[1]);
-    }
   }
 
 	
 
-  if(potentiometer_init())
+  if(potentiometer_init(POT_ADC_MAX, POT_OUTPUT_MAX))
   {
     printf("Failed to initialize potentiometer\n");
     return -1;
-  }
-
+  } 
   if(motor_init(MOTOR_VOLTAGE, PWM_PERIOD_US))
   {
     printf("Failed to initialize motor\n");
@@ -70,14 +74,13 @@ int main(int argc, char* argv[])
   while(running)
   {
     gettimeofday(&ctl_start, NULL); 
-    //des = potentiometer_read();
-    /**if(shaper)
-    {
-    }**/
+    des = potentiometer_read();
 
+    if(shaper)
+    {
+    }
       
-    ctrl_des = 0.446*(des - motor_get_position());
-    ctrl_des = (abs(ctrl_des) > 12.0) ? 12.0 * (ctrl_des / abs(ctrl_des)) : ctrl_des;
+    ctrl_des = pid_controller(des, motor_get_position(), Kp, Ki, Kd, LOOP_RATE_NS / 1000000000, Saturation);
 
     motor_set_voltage(ctrl_des);
 

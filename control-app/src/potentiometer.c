@@ -4,16 +4,19 @@
 #include <stdlib.h>
 
 #define POT_DEV "/sys/bus/iio/devices/iio:device1/in_voltage8_raw"
-#define POT_DEGREES 270.0f
-#define ADC_MAX 0xFFF
 #define MAX_DIGITS 5
 
 static int pot_fd = 0;
 static char reading_buf[MAX_DIGITS + 1];
+static unsigned int adc_max;
+static float output_max;
 
-int potentiometer_init()
+int potentiometer_init(unsigned int adc_max_val, float output_max_val)
 {
   int ret = 0;
+
+  adc_max = adc_max_val;
+  output_max = output_max_val;
 
   if(!pot_fd)
   {
@@ -34,7 +37,7 @@ float potentiometer_read()
     if(read(pot_fd, reading_buf, sizeof(reading_buf)))
     {
       int raw = atoi(reading_buf);
-      ret = ((float)ret) / ((float)ADC_MAX) * POT_DEGREES;
+      ret = ((float)ret) / ((float)adc_max) * output_max;
     }
   }
 

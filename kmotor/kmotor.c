@@ -303,6 +303,7 @@ static irqreturn_t encoder_irq_handler(int irq, void* dev_id)
         break;
     }
 
+/**
     if(angle > (360 << POINT))
     {
       angle -= (360 << POINT);
@@ -312,6 +313,7 @@ static irqreturn_t encoder_irq_handler(int irq, void* dev_id)
     {
       angle += (360 << POINT);
     }
+**/
 
     last_encoder_state = curr_encoder_state;
   }

@@ -14,13 +14,16 @@ ZEDBOARD_IP?=qemu
 endif
 UPLOAD_PATH ?= /home/root/
 
-control-app : $(OBJ)/control-app.o $(OBJ)/motor.o $(OBJ)/potentiometer.o
+control-app : $(OBJ)/control-app.o $(OBJ)/motor.o $(OBJ)/potentiometer.o $(OBJ)/controllers.o
 	$(CROSS_COMPILE)gcc $(FLAGS) -I$(INC) $^ -o $@
 
 upload : control-app
 	scp $^ root@$(ZEDBOARD_IP):$(UPLOAD_PATH)
 
 $(OBJ)/control-app.o : $(SRC)/control-app.c
+	$(CROSS_COMPILE)gcc $(FLAGS) -c -I $(INC) $< -o $@
+
+$(OBJ)/controllers.o : $(SRC)/controllers.c
 	$(CROSS_COMPILE)gcc $(FLAGS) -c -I $(INC) $< -o $@
 
 $(OBJ)/motor.o : $(SRC)/motor.c
