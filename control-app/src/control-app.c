@@ -6,6 +6,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdlib.h>
 
 #define MOTOR_VOLTAGE 12.0f
 #define PWM_PERIOD_US 1000
@@ -23,11 +26,14 @@ int main(int argc, char* argv[])
 {
   unsigned char shaper = 1;
   float des;
+  float ctrl_des;
   struct timeval ctl_start;
   struct timeval ctl_end;
   struct timespec sleep_timespec;
 
-  if(argc == 2)
+  signal(SIGINT, intHandler);
+
+  if(argc > 1)
   {
     if(!strcmp(argv[1], "-noshaper"))
     {
@@ -37,7 +43,13 @@ int main(int argc, char* argv[])
     {
       shaper = 1;
     }
+    else
+    {
+      des = atof(argv[1]);
+    }
   }
+
+	
 
   if(potentiometer_init())
   {
@@ -58,13 +70,17 @@ int main(int argc, char* argv[])
   while(running)
   {
     gettimeofday(&ctl_start, NULL); 
-    des = potentiometer_read();
-
-    if(shaper)
+    //des = potentiometer_read();
+    /**if(shaper)
     {
-    }
+    }**/
 
-    motor_set_voltage(des);
+      
+    ctrl_des = 0.446*(des - motor_get_position());
+    ctrl_des = (abs(ctrl_des) > 12.0) ? 12.0 * (ctrl_des / abs(ctrl_des)) : ctrl_des;
+
+    motor_set_voltage(ctrl_des);
+
     gettimeofday(&ctl_end, NULL);
   
     sleep_timespec.tv_sec = 0;
