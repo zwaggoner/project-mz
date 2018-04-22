@@ -15,7 +15,7 @@ endif
 UPLOAD_PATH ?= /home/root/
 
 control-app : $(OBJ)/control-app.o $(OBJ)/motor.o $(OBJ)/potentiometer.o $(OBJ)/controllers.o
-	$(CROSS_COMPILE)gcc $(FLAGS) -I$(INC) $^ -o $@
+	$(CROSS_COMPILE)gcc $(FLAGS) -I$(INC) $^ -o $@ -lm
 
 upload : control-app
 	scp $^ root@$(ZEDBOARD_IP):$(UPLOAD_PATH)

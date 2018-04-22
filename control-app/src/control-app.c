@@ -67,6 +67,8 @@ int main(int argc, char* argv[])
     potentiometer_deinit();
   }
 
+  set_pid_params(Kp, Ki, Kd, LOOP_RATE_NS / 1000000000, Saturation);
+
   motor_set_state(ON);
 
   setpriority(PRIO_PROCESS, 0, -20); 
@@ -80,7 +82,7 @@ int main(int argc, char* argv[])
     {
     }
       
-    ctrl_des = pid_controller(des, motor_get_position(), Kp, Ki, Kd, LOOP_RATE_NS / 1000000000, Saturation);
+    ctrl_des = pid_controller(des, motor_get_position());
 
     motor_set_voltage(ctrl_des);
 
