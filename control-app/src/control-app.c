@@ -24,6 +24,9 @@
 #define Kd 0.0520942929296246
 #define Saturation MOTOR_VOLTAGE
 
+#define Freq 13.5860741971
+#define Damp 0.03
+
 static volatile unsigned char running = 1;
 
 void intHandler(int dummy)
@@ -67,6 +70,7 @@ int main(int argc, char* argv[])
     potentiometer_deinit();
   }
 
+  set_input_shaper_params(Freq, Damp, LOOP_RATE_NS / 1000000000);
   set_pid_params(Kp, Ki, Kd, LOOP_RATE_NS / 1000000000, Saturation);
 
   motor_set_state(ON);
@@ -80,6 +84,7 @@ int main(int argc, char* argv[])
 
     if(shaper)
     {
+      des = input_shaper(des);
     }
       
     ctrl_des = pid_controller(des, motor_get_position());
