@@ -34,10 +34,11 @@ float potentiometer_read()
 
   if(pot_fd)
   {
+    lseek(pot_fd, 0, SEEK_SET);
     if(read(pot_fd, reading_buf, sizeof(reading_buf)))
     {
       int raw = atoi(reading_buf);
-      ret = ((float)ret) / ((float)adc_max) * output_max;
+      ret = ((float)raw) / ((float)adc_max) * output_max;
     }
   }
 

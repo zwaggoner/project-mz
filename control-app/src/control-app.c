@@ -10,22 +10,23 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <math.h>
 
 #define MOTOR_VOLTAGE 12.0f
 #define PWM_PERIOD_US 1000
 
-#define POT_ADC_MAX 1365
+#define POT_ADC_MAX 1745
 #define POT_OUTPUT_MAX 360 
 
 #define LOOP_RATE_NS 1000000
 
-#define Kp 0.142065690258213
-#define Ki 0.081333487477284
-#define Kd 0.0520942929296246
+#define Kp 0.3
+#define Ki 0
+#define Kd 0.01
 #define Saturation MOTOR_VOLTAGE
 
-#define Freq 13.5860741971
-#define Damp 0.03
+#define Freq 12.5f//15.885154736f
+#define Damp 0.05f
 
 static volatile unsigned char running = 1;
 
@@ -70,8 +71,8 @@ int main(int argc, char* argv[])
     potentiometer_deinit();
   }
 
-  set_input_shaper_params(Freq, Damp, LOOP_RATE_NS / 1000000000);
-  set_pid_params(Kp, Ki, Kd, LOOP_RATE_NS / 1000000000, Saturation);
+  set_input_shaper_params(Freq, Damp, (float)LOOP_RATE_NS / (float)1000000000);
+  set_pid_params(Kp, Ki, Kd, (float)LOOP_RATE_NS / (float)1000000000, Saturation);
 
   motor_set_state(ON);
 
@@ -81,6 +82,8 @@ int main(int argc, char* argv[])
   {
     gettimeofday(&ctl_start, NULL); 
     des = potentiometer_read();
+
+    des = round(des / 0.35211267605f) * 0.35211267605f;
 
     if(shaper)
     {
