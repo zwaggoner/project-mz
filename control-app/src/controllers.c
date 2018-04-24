@@ -2,7 +2,7 @@
 #include <math.h>
 #include <stdlib.h>
 
-#define MAX_BUFFER 500
+#define MAX_BUFFER 1000000
 
 static float kp = 0.0;
 static float ki = 0.0;
@@ -13,10 +13,11 @@ static float prev_err = 0.0;
 static float integral_err = 0.0;
 
 static float shaper_buf[MAX_BUFFER] = {0};
+static float shaper_buf1[MAX_BUFFER] = {0};
 static unsigned int delay_idx = 0;
 static float t0_amp;
 static float t1_amp;
-
+static float t2_amp;
 
 void set_input_shaper_params(float vib_freq, float vib_damping_ratio, float sample_time)
 {
@@ -26,20 +27,27 @@ void set_input_shaper_params(float vib_freq, float vib_damping_ratio, float samp
 
 	K = exp(-(vib_damping_ratio * M_PI) / sqrt(1 - pow(vib_damping_ratio, 2)));
 
-	t0_amp = 1 / (1 + K);
-	t1_amp = K / (K + 1);
+	t0_amp = 1 / (1 + 2*K + pow(K, 2));
+	t1_amp = 2*K / (1 + 2*K + pow(K, 2));
+	t2_amp = pow(K, 2) / (1 + 2*K + pow(K, 2));
 }
 
 float input_shaper(float des)
 {
-	float out = (t0_amp * des) + (t1_amp * shaper_buf[0]);
+	float out = (t0_amp * des) + (t1_amp * shaper_buf[0]) + (t2_amp * shaper_buf1[0]);
 
 	for(unsigned int i = 0; i < delay_idx; i++)
 	{
 		shaper_buf[i] = shaper_buf[i+1];	
 	}
 
+	for(unsigned int i = 0; i < 2*delay_idx; i++)
+	{
+		shaper_buf1[i] = shaper_buf1[i + 1];
+	}
+
 	shaper_buf[delay_idx] = des;
+	shaper_buf1[2*delay_idx] = des;
 
 	return out;		
 }
@@ -57,11 +65,14 @@ float pid_controller(float des, float feedback)
 {
 	float err = des - feedback;
 	float ctrl_out = 0.0;
+	float sign = 1;
 	integral_err = integral_err + err;
 
 	ctrl_out = kp * err + (ki * integral_err * sample_time) + (kd * ((err - prev_err) / sample_time));
 
-	ctrl_out = (abs(ctrl_out) > abs(saturation)) ? abs(saturation) * (ctrl_out / abs(ctrl_out)) : ctrl_out;
+	sign = (ctrl_out >= 0.0f) ? 1.0f : -1.0f;
+
+	ctrl_out = (abs(ctrl_out) > abs(saturation)) ? abs(saturation) * sign : ctrl_out;
 
 	prev_err = err;
 
