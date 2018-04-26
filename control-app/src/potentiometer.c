@@ -11,6 +11,7 @@ static char reading_buf[MAX_DIGITS + 1];
 static unsigned int adc_max;
 static float output_max;
 
+// Initialize potentiometer
 int potentiometer_init(unsigned int adc_max_val, float output_max_val)
 {
   int ret = 0;
@@ -28,6 +29,7 @@ int potentiometer_init(unsigned int adc_max_val, float output_max_val)
   return ret;
 }
 
+// Read potentiometer value
 float potentiometer_read()
 {
   float ret = 0.0f;
@@ -45,6 +47,7 @@ float potentiometer_read()
   return ret; 
 }
 
+// De-initialize potentiometer
 void potentiometer_deinit()
 {
   if(pot_fd)

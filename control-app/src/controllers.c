@@ -19,6 +19,7 @@ static float t0_amp;
 static float t1_amp;
 static float t2_amp;
 
+// Set the parameters for the input shaper
 void set_input_shaper_params(float vib_freq, float vib_damping_ratio, float sample_time)
 {
 	float K;
@@ -32,6 +33,7 @@ void set_input_shaper_params(float vib_freq, float vib_damping_ratio, float samp
 	t2_amp = pow(K, 2) / (1 + 2*K + pow(K, 2));
 }
 
+// Counteract the vibrations of the rod
 float input_shaper(float des)
 {
 	float out = (t0_amp * des) + (t1_amp * shaper_buf[0]) + (t2_amp * shaper_buf1[0]);
@@ -52,6 +54,7 @@ float input_shaper(float des)
 	return out;		
 }
 
+// Set the parameters for the PID controller
 void set_pid_params(float kp_val, float ki_val, float kd_val, float sample_time_val, float saturation_val)
 {
 	kp = kp_val;
@@ -61,6 +64,7 @@ void set_pid_params(float kp_val, float ki_val, float kd_val, float sample_time_
 	saturation = saturation_val;
 }
 
+// Calculate the error between the desired and actual positon of the motor and correct
 float pid_controller(float des, float feedback)
 {
 	float err = des - feedback;
