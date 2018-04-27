@@ -17,8 +17,10 @@ int motor_init(float max_voltage, unsigned int pwm_period_us)
 
   if(!motor_fd)
   {
+    // Open motor device file 
     motor_fd = open(MOTOR_DEV, O_RDWR); 
 
+    // Set the desired max voltage and pwm period in microseconds using the ioctl 
     if(motor_fd)
     {
       ioctl(motor_fd, MOTOR_SET_MAX_VOLTAGE, SEND_FLOAT(max_voltage));

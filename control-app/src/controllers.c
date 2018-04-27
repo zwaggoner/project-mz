@@ -36,8 +36,10 @@ void set_input_shaper_params(float vib_freq, float vib_damping_ratio, float samp
 // Counteract the vibrations of the rod
 float input_shaper(float des)
 {
+	// Calculte desired output of ZVD shaper
 	float out = (t0_amp * des) + (t1_amp * shaper_buf[0]) + (t2_amp * shaper_buf1[0]);
 
+	// Advance buffer of inputs (delayed previous inputs
 	for(unsigned int i = 0; i < delay_idx; i++)
 	{
 		shaper_buf[i] = shaper_buf[i+1];	
@@ -48,6 +50,7 @@ float input_shaper(float des)
 		shaper_buf1[i] = shaper_buf1[i + 1];
 	}
 
+	// Store current inputs into delay buffers
 	shaper_buf[delay_idx] = des;
 	shaper_buf1[2*delay_idx] = des;
 
@@ -70,14 +73,20 @@ float pid_controller(float des, float feedback)
 	float err = des - feedback;
 	float ctrl_out = 0.0;
 	float sign = 1;
+
+	// Integrate error
 	integral_err = integral_err + err;
 
+	// Calculate control law output using discrete time estimations of derivative and integral
 	ctrl_out = kp * err + (ki * integral_err * sample_time) + (kd * ((err - prev_err) / sample_time));
 
+	// Check sign of output
 	sign = (ctrl_out >= 0.0f) ? 1.0f : -1.0f;
 
+	// Apply saturation limits
 	ctrl_out = (abs(ctrl_out) > abs(saturation)) ? abs(saturation) * sign : ctrl_out;
 
+	// store previous error
 	prev_err = err;
 
 	return ctrl_out;

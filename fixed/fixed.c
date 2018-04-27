@@ -25,19 +25,24 @@ fixed32_t float_to_fixed(float f, FixedPointError* err)
 
 	FloatToBits f_conv;
 
+        // Extract the sign exponent and fraction from the floating point number
 	f_conv.f_float = f;
 	sign = (f_conv.f_bits & SIGN_MASK) >> SIGN_BIT_NUM;
 	exponent = (f_conv.f_bits & EXPONENT_MASK) >> EXPONENT_START_BIT_NUM;
 	fraction = (f_conv.f_bits & FRACTION_MASK) | ((exponent) ? NORMALIZED_MASK : 0);
 
+	// Convert the exponent into the amount needed to shift the floating point fraction for fixed point
 	exponent = exponent - EXPONENT_OFFSET - (EXPONENT_START_BIT_NUM - POINT);
+	// Convert the sign into something that can be multiplied
 	sign = (sign) ? -1 : 1;
 	
 
 	if(exponent > 0)
 	{
+		// Positive shift, left shift number into correct place 
 		ret = (fraction << exponent);			
-		
+	
+		// Check location of leading 1 for overflow	
 		for(i = 0; i < 31; i++)
 		{
 			if(fraction & (0x80000000 >> i))
@@ -57,8 +62,10 @@ fixed32_t float_to_fixed(float f, FixedPointError* err)
 	}
 	else
 	{
+		// Negative shift, right shift number into correct place
 		ret = (fraction >> (-1*exponent));
 
+		// Check location of leading 1 for underflow
 		for(i = 0; i < 31; i++)
 		{
 			if(fraction & (0x80000000 >> i))
@@ -77,6 +84,7 @@ fixed32_t float_to_fixed(float f, FixedPointError* err)
 		}
 	}
 
+	// Make return have the correct sign
 	ret = sign * ret;
 
 	return ret;	
@@ -91,12 +99,15 @@ float fixed_to_float(fixed32_t fixed)
 	FloatToBits f_conv;
 	f_conv.f_bits = 0;
 
+	// Determine sign and set sign bit
 	f_conv.f_bits |= (fixed & SIGN_MASK) ? 0x80000000 : 0x00000000;
 
 	if(fixed != 0)
 	{
+		// Take absolute value of the fixed point representation
 		fixed = fixed * ((f_conv.f_bits) ? -1 : 1);
 
+		// Find location of the leading one to determine shift amount
 		for(i = 0; i < 31; i++)
 		{
 			if(fixed & (0x80000000 >> i))
@@ -105,8 +116,10 @@ float fixed_to_float(fixed32_t fixed)
 			}
 		}
 
+		// Calculate shift amount of leading 1 location
 		shift = EXPONENT_START_BIT_NUM - (SIGN_BIT_NUM - i);
 
+		// Shift in the correct direction and set fractional part
 		if(shift < 0)
 		{
 			f_conv.f_bits |= ((fixed >> (-1*shift)) & FRACTION_MASK);
@@ -116,6 +129,7 @@ float fixed_to_float(fixed32_t fixed)
 			f_conv.f_bits |= ((fixed << shift) & FRACTION_MASK);
 		}
 
+		// Set use leading 1 location to set the exponent
 		f_conv.f_bits |= (((SIGN_BIT_NUM - POINT) - i) + EXPONENT_OFFSET) << EXPONENT_START_BIT_NUM;
 
 		ret = f_conv.f_float;  		

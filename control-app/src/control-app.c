@@ -84,11 +84,12 @@ int main(int argc, char* argv[])
   
   while(running)
   {
+    // Get start time of control loop interation
     gettimeofday(&ctl_start, NULL);
 
     // Determine the user's desired position of the motor
     des = potentiometer_read();
-    des = round(des / 0.35211267605f) * 0.35211267605f;
+    des = round(des / 0.35211267605f) * 0.35211267605f; // Attemp to increase controller accuracy by dividing by increments of the angle
 
     // Counteract the vibrations of the rod
     if(shaper)
@@ -100,11 +101,14 @@ int main(int argc, char* argv[])
     ctrl_des = pid_controller(des, motor_get_position());
     motor_set_voltage(ctrl_des);
 
+    // Get end time of control loop interation
     gettimeofday(&ctl_end, NULL);
-  
+ 
+    // Determine loop execution time and subtract from sleep time 
     sleep_timespec.tv_sec = 0;
     sleep_timespec.tv_nsec = LOOP_RATE_NS - (((ctl_end.tv_sec * 1000000000) + (ctl_end.tv_usec * 1000)) - ((ctl_start.tv_sec * 1000000000) + (ctl_start.tv_usec * 1000)));
-    
+   
+    // Sleep for sample rate minus loop execution time 
     nanosleep(&sleep_timespec, NULL);
   }
 
